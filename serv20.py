@@ -3,6 +3,7 @@ import ast
 from bottle import route, run, request, abort, response
 from json import dumps
 from bson import ObjectId, json_util
+import datetime
 import pymongo
 import serverconfig as cfg
 
@@ -15,18 +16,64 @@ mycol = mydb[cfg.mongoDb]
 # Route for adding single recdord
 #
 
-@route('/stat', method='PUT')
+@route('/statold', method='PUT')
 def put_document():
     data = request.body.readline()
     if not data:
         abort(400, 'No data received')
-    entity = json.loads(data.decode('utf-8'))
 
-#    entity = json.loads(data)
+    entity = json.loads(data)
     x = mycol.insert_one(entity)
     rv = [{ "id": str(x.inserted_id)}]
     response.content_type = 'application/json'
     return dumps(rv)
+
+#
+# Route for update or adding single recdord
+#
+
+@route('/stat', method='PUT')
+def put_document_up():
+    print ("Got message", datetime.datetime.now())
+    data = request.body.readline()
+    if not data:
+        abort(400, 'No data received')
+    entity = json.loads(data.decode('utf-8'))
+#    print(entity['id'])
+    x = mycol.update_one({'id': entity['id']}, {"$set": entity}, upsert=True)
+    rv = [{"action": "statup"},{ "id": str(x)}]
+    response.content_type = 'application/json'
+    return dumps(rv)
+
+
+
+#
+# Route for update or adding bulk recdord
+#
+#    print ("Got message", datetime.datetime.now())
+#    print ("Finished getting data, decoding json started", datetime.datetime.now())
+#    print ("Starting inserts", datetime.datetime.now())
+#    print ("Finished", datetime.datetime.now())
+
+@route('/updbulk', method='PUT')
+def put_document_up_blk():
+    print ("Got message", datetime.datetime.now())
+    data = request.body.readline()
+    if not data:
+        abort(400, 'No data received')
+#    print (data.decode('utf-8'))
+    print ("Finished getting data, decoding json started", datetime.datetime.now())
+
+    entity = json.loads(data.decode('utf-8'))
+    print ("Starting inserts", datetime.datetime.now())
+    records = {}
+    for element in entity:
+        x = mycol.update({'id': int(element['id'])}, {"$set": element}, upsert=True)
+        rv = [{"action": "statup"},{ "id": str(x)}]
+        records.update({element['id']: rv})
+    print ("Finished", datetime.datetime.now())
+    response.content_type = 'application/json'
+    return dumps(records)
 
 #
 # Route for adding bulk records
@@ -34,12 +81,15 @@ def put_document():
 
 @route('/statbulk', method='PUT')
 def put_document():
+    print ("Got message", datetime.datetime.now())
     data = request.body.readline()
     if not data:
         abort(400, 'No data received')
-
+    print ("Finished getting data, decoding json started", datetime.datetime.now())
     entity = json.loads(data.decode('utf-8'))
+    print ("Starting inserts", datetime.datetime.now())
     x = mycol.insert_many(entity)
+    print ("Finished", datetime.datetime.now())
     entity = x.inserted_ids
     page_sanitized = json.loads(json_util.dumps(entity))
     response.content_type = 'application/json'
@@ -91,12 +141,12 @@ def get_document_page():
         limit = 10
 
     if not page:
-        entity = mycol.find(filters).limit(int(limit)).sort("id", pymongo.DESCENDING)
+        entity = mycol.find(filters).limit(int(limit))
 
     else:
-        entity = mycol.find(filters).skip(int(page) * int(limit)).limit(int(limit)).sort("id", pymongo.DESCENDING)
+        entity = mycol.find(filters).skip(int(page) * int(limit)).limit(int(limit))
     page_sanitized = json.loads(json_util.dumps(entity))
     response.content_type = 'application/json'
     return dumps(page_sanitized)
 
-run(host='0.0.0.0', port=8089)
+run(host='0.0.0.0', port=8099)

@@ -4,7 +4,7 @@ from bottle import route, run, request, abort, response
 from json import dumps
 from bson import ObjectId, json_util
 import pymongo
-import serverconfig as cfg
+import catalogservconfig as cfg
 
 myclient = pymongo.MongoClient(cfg.mongoServer)
 mydb = myclient[cfg.mongoClient]
@@ -15,16 +15,32 @@ mycol = mydb[cfg.mongoDb]
 # Route for adding single recdord
 #
 
-@route('/stat', method='PUT')
+@route('/addproduct', method='PUT')
 def put_document():
     data = request.body.readline()
     if not data:
         abort(400, 'No data received')
-    entity = json.loads(data.decode('utf-8'))
 
-#    entity = json.loads(data)
+    entity = json.loads(data)
     x = mycol.insert_one(entity)
     rv = [{ "id": str(x.inserted_id)}]
+    response.content_type = 'application/json'
+    return dumps(rv)
+
+#
+# Route for update or adding single recdord
+#
+
+@route('/product', method='PUT')
+def put_document_up():
+    data = request.body.readline()
+    if not data:
+        abort(400, 'No data received')
+
+    entity = json.loads(data.decode('utf-8'))
+#    print(entity['id'])
+    x = mycol.update_one({'id': entity['id']}, {"$set": entity}, upsert=True)
+    rv = [{"action": "statup"},{ "id": str(x)}]
     response.content_type = 'application/json'
     return dumps(rv)
 
@@ -32,13 +48,13 @@ def put_document():
 # Route for adding bulk records
 #
 
-@route('/statbulk', method='PUT')
+@route('/productbulk', method='PUT')
 def put_document():
     data = request.body.readline()
     if not data:
         abort(400, 'No data received')
 
-    entity = json.loads(data.decode('utf-8'))
+    entity = json.loads(data)
     x = mycol.insert_many(entity)
     entity = x.inserted_ids
     page_sanitized = json.loads(json_util.dumps(entity))
@@ -49,9 +65,9 @@ def put_document():
 # Route for getting single document
 #
 
-@route('/stat/:id', method='GET')
+@route('/product/:id', method='GET')
 def get_document(id):
-    entity = mycol.find_one({'_id': ObjectId(id)})
+    entity = mycol.find_one({'id': ObjectId(id)})
     if not entity:
         abort(404, 'No document with id %s' % id)
 
@@ -99,4 +115,4 @@ def get_document_page():
     response.content_type = 'application/json'
     return dumps(page_sanitized)
 
-run(host='0.0.0.0', port=8089)
+run(host='0.0.0.0', port=8085)
